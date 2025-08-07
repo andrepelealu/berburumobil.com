@@ -727,12 +727,11 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
   // Prioritize unique, high-quality images (remove duplicates and select best)
   const uniqueImages = [...new Set(validImages)]
   
-  // Take up to 15 images for comprehensive analysis (reduced due to storage costs)
+  // Take up to 15 images for comprehensive analysis
   const selectedImages = uniqueImages.slice(0, 15)
   
-  // Variables to track for cleanup
+  // Variables to track for background storage
   let carId: string | undefined = undefined
-  let storedImageUrls: string[] = []
 
   try {
     const { OpenAI } = await import('openai')
@@ -744,31 +743,32 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
       return fallbackAnalysis(carTitle, 0)
     }
 
-    // Generate unique car ID for image storage with multiple entropy sources
+    // Generate unique car ID for background image storage
     const timestamp = Date.now()
     const randomComponent = Math.random().toString(36).substring(2, 8)
     const processId = process.pid || Math.floor(Math.random() * 10000)
     carId = crypto.createHash('md5').update(`${carTitle}_${timestamp}_${randomComponent}_${processId}`).digest('hex').substring(0, 16)
     
-    // Add small delay to prevent concurrent request conflicts
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 1000))
-    
-    // Download and store images to Supabase S3
-    console.log(`Downloading and storing ${selectedImages.length} images to Supabase S3 (carId: ${carId})...`)
-    storedImageUrls = await ImageStorageService.downloadAndStoreImages(selectedImages, carId)
-    
-    if (storedImageUrls.length === 0) {
-      console.error('No images could be stored, falling back to mock analysis')
-      return fallbackAnalysis(carTitle, 0)
-    }
-    
-    console.log(`Successfully stored ${storedImageUrls.length} images in S3`)
+    // Start background image storage (don't wait for it)
+    setImmediate(() => {
+      console.log(`Starting background storage of ${selectedImages.length} images to Supabase S3 (carId: ${carId})...`)
+      ImageStorageService.downloadAndStoreImages(selectedImages, carId!)
+        .then(storedUrls => {
+          console.log(`✅ Background storage completed: ${storedUrls.length} images stored for carId: ${carId}`)
+        })
+        .catch(error => {
+          console.error(`❌ Background image storage failed for carId: ${carId}`, error)
+        })
+    })
+
+    // Use original scrape URLs directly for immediate AI analysis
+    console.log(`Using ${selectedImages.length} original URLs for immediate AI analysis`)
 
     // Create the enhanced vision analysis prompt with strict JSON formatting in Indonesian
-    const prompt = `Anda adalah seorang inspector mobil berpengalaman di Indonesia. Analisis ${storedImageUrls.length} foto mobil untuk ${carTitle} dengan DETAIL dan OBJEKTIF.
+    const prompt = `Anda adalah seorang inspector mobil berpengalaman di Indonesia. Analisis ${selectedImages.length} foto mobil untuk ${carTitle} dengan DETAIL dan OBJEKTIF.
 
 INSTRUKSI PENILAIAN SEIMBANG:
-- Dengan ${storedImageUrls.length} foto, Anda memiliki data yang cukup untuk penilaian akurat
+- Dengan ${selectedImages.length} foto, Anda memiliki data yang cukup untuk penilaian akurat
 - Berikan skor REALISTIS berdasarkan kondisi yang terlihat
 - Skor tinggi (80-90) BISA diberikan jika kondisinya benar-benar baik dengan foto lengkap
 - Skor rendah (40-60) hanya jika ada masalah nyata atau foto sangat terbatas
@@ -820,16 +820,16 @@ KRITERIA PENILAIAN SEIMBANG (dengan ${selectedImages.length} foto):
 - Skor 30-49: Kondisi buruk atau foto sangat terbatas/mencurigakan
 
 EVALUASI JUMLAH FOTO:
-- ${storedImageUrls.length} foto: ${
-  storedImageUrls.length >= 15 ? 'Cakupan LUAR BIASA - kepercayaan sangat tinggi' :
-  storedImageUrls.length >= 10 ? 'Cakupan SANGAT BAIK - kepercayaan tinggi' :
-  storedImageUrls.length >= 8 ? 'Cakupan BAIK - kepercayaan menengah-tinggi' :
-  storedImageUrls.length >= 5 ? 'Cakupan MEMADAI - kepercayaan menengah' :
+- ${selectedImages.length} foto: ${
+  selectedImages.length >= 15 ? 'Cakupan LUAR BIASA - kepercayaan sangat tinggi' :
+  selectedImages.length >= 10 ? 'Cakupan SANGAT BAIK - kepercayaan tinggi' :
+  selectedImages.length >= 8 ? 'Cakupan BAIK - kepercayaan menengah-tinggi' :
+  selectedImages.length >= 5 ? 'Cakupan MEMADAI - kepercayaan menengah' :
   'Cakupan TERBATAS - kepercayaan rendah'
 }
 
 FOKUS ANALISIS:
-- Manfaatkan SEMUA ${storedImageUrls.length} foto untuk penilaian komprehensif
+- Manfaatkan SEMUA ${selectedImages.length} foto untuk penilaian komprehensif
 - Identifikasi area yang terlihat jelas vs yang tidak ditampilkan
 - Beri kredit untuk foto berkualitas dan sudut yang baik
 - Waspada terhadap tanda bahaya tapi jangan paranoid
@@ -837,8 +837,8 @@ FOKUS ANALISIS:
 
 PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada format markdown, tidak ada blok kode. Hanya JSON murni yang dapat diparse langsung.`
 
-    // Prepare image content for OpenAI using stored S3 URLs
-    const imageContent = storedImageUrls.map(url => ({
+    // Prepare image content for OpenAI using direct scrape URLs
+    const imageContent = selectedImages.map(url => ({
       type: "image_url" as const,
       image_url: {
         url: url,
@@ -962,40 +962,22 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
         photoQuality: ['📷 Kualitas dan kelengkapan foto tidak memadai untuk analisis akurat'],
         overall: '🚨 RISIKO TINGGI: Foto sangat terbatas. Inspeksi teknisi profesional WAJIB sebelum pembelian!'
       },
-      // Add storage information
-      storedCarId: carId,
-      storedImageCount: storedImageUrls.length
+      // Add storage information for background process
+      backgroundStorageCarId: carId,
+      backgroundStorageStatus: 'processing'
     }
     
-    // Keep images in storage for inspection (comment out the cleanup)
-    // Note: Images will remain in Supabase storage bucket
-    console.log(`✅ Images stored in Supabase bucket 'car-images' under folder: ${carId}`)
-    console.log(`📁 Stored ${storedImageUrls.length} images that can be viewed in Supabase dashboard`)
-    
-    // Optional: Uncomment below to auto-delete images after analysis
-    // ImageStorageService.cleanupCarImages(carId).catch(error => {
-    //   console.error('Error cleaning up images:', error)
-    // })
+    console.log(`✅ AI analysis completed for ${selectedImages.length} images`)
+    console.log(`📁 Background storage initiated for carId: ${carId}`)
     
     return finalResult
 
   } catch (error) {
     console.error('Error calling OpenAI Vision API:', error)
     
-    // Keep images even if analysis failed for debugging
-    if (typeof carId !== 'undefined' && storedImageUrls?.length > 0) {
-      console.log(`📁 Images preserved in Supabase bucket for debugging: ${carId}`)
-      console.log(`🔍 ${storedImageUrls.length} images available for inspection`)
-    }
+    console.log(`❌ AI analysis failed, background storage may still be processing for carId: ${carId}`)
     
-    // Optional: Uncomment to cleanup images on failure
-    // if (typeof carId !== 'undefined') {
-    //   ImageStorageService.cleanupCarImages(carId).catch(cleanupError => {
-    //     console.error('Error cleaning up images after failure:', cleanupError)
-    //   })
-    // }
-    
-    return fallbackAnalysis(carTitle, storedImageUrls?.length || 0)
+    return fallbackAnalysis(carTitle, selectedImages?.length || 0)
   }
 }
 
