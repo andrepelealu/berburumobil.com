@@ -5,12 +5,6 @@
       "maxDuration": 30
     }
   },
-  "env": {
-    "OPENAI_API_KEY": "@openai-api-key",
-    "DATABASE_URL": "@database-url",
-    "MIDTRANS_SERVER_KEY": "@midtrans-server-key",
-    "MIDTRANS_CLIENT_KEY": "@midtrans-client-key"
-  },
   "regions": ["sin1"],
   "rewrites": [
     {
