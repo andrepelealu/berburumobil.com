@@ -1,0 +1,43 @@
+{
+  "name": "berburumobil",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "pretest": "npm run lint",
+    "prebuild:full": "npm run test"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "@supabase/supabase-js": "^2.53.0",
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "lucide-react": "^0.536.0",
+    "next": "15.4.5",
+    "openai": "^4.20.1",
+    "puppeteer": "^21.6.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/cheerio": "^0.22.35",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.4.5",
+    "jest": "^29.7.0",
+    "tailwindcss": "^4",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5"
+  }
+}
