@@ -1094,7 +1094,14 @@ function extractNumberFromText(text: string, key: string): number | null {
 
 // Fast parallel image download and base64 conversion - optimized for 15 images
 async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
-  const sharp = await import('sharp')
+  // Dynamic import to ensure Sharp works on Vercel
+  let sharp: any
+  try {
+    const sharpModule = await import('sharp')
+    sharp = sharpModule.default || sharpModule
+  } catch (sharpImportError) {
+    throw new Error(`Sharp not available on this platform: ${sharpImportError instanceof Error ? sharpImportError.message : 'Unknown error'}`)
+  }
   
   // Process images in batches of 5 to prevent overwhelming the server/memory
   const batchSize = 5
@@ -1117,34 +1124,64 @@ async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
     const batchPromises = batch.map(async (url, index) => {
       const _globalIndex = batchIndex * batchSize + index
       try {
+        // Create manual timeout for Vercel compatibility
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+        
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Sec-Fetch-Dest': 'image',
+            'Sec-Fetch-Mode': 'no-cors',
+            'Sec-Fetch-Site': 'cross-site'
           },
-          signal: AbortSignal.timeout(8000) // 8 second timeout per image (faster)
+          signal: controller.signal
         })
         
+        clearTimeout(timeoutId)
+        
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`)
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const contentType = response.headers.get('content-type')
+        if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`Invalid content type: ${contentType}`)
         }
         
         const buffer = await response.arrayBuffer()
+        if (!buffer || buffer.byteLength === 0) {
+          throw new Error('Empty response buffer')
+        }
+        
+        // Check file size (5MB limit for Vercel memory management)
+        const fileSizeMB = buffer.byteLength / (1024 * 1024)
+        if (fileSizeMB > 5) {
+          throw new Error(`Image too large: ${fileSizeMB.toFixed(1)}MB (max 5MB)`)
+        }
         
         // Optimized processing for faster results
         // Max 600px width, 75% quality JPEG (smaller but still good quality)
-        const processedBuffer = await sharp.default(Buffer.from(buffer))
-          .resize(600, null, { 
-            withoutEnlargement: true,
-            fastShrinkOnLoad: true,
-            kernel: sharp.kernel.lanczos2 // Faster kernel
-          })
-          .jpeg({ 
-            quality: 75,
-            progressive: true,
-            mozjpeg: true,
-            optimiseScans: true
-          })
-          .toBuffer()
+        let processedBuffer: Buffer
+        try {
+          processedBuffer = await sharp(Buffer.from(buffer))
+            .resize(600, null, { 
+              withoutEnlargement: true,
+              fastShrinkOnLoad: true
+            })
+            .jpeg({ 
+              quality: 75,
+              progressive: true,
+              optimiseScans: true
+            })
+            .toBuffer()
+        } catch (sharpError) {
+          // Fallback for unsupported formats or corrupted images
+          throw new Error(`Image processing failed: ${sharpError instanceof Error ? sharpError.message : 'Unknown error'}`)
+        }
         
         const base64 = processedBuffer.toString('base64')
         // Image processed successfully
