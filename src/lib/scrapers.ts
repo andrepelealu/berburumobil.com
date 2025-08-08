@@ -1095,10 +1095,10 @@ function extractNumberFromText(text: string, key: string): number | null {
 // Fast parallel image download and base64 conversion - optimized for 15 images
 async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
   // Dynamic import to ensure Sharp works on Vercel
-  let sharp: any
+  let sharp: (buffer: Buffer) => import('sharp').Sharp
   try {
     const sharpModule = await import('sharp')
-    sharp = sharpModule.default || sharpModule
+    sharp = sharpModule.default
   } catch (sharpImportError) {
     throw new Error(`Sharp not available on this platform: ${sharpImportError instanceof Error ? sharpImportError.message : 'Unknown error'}`)
   }
