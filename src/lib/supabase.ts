@@ -29,7 +29,7 @@ if (isValidSupabaseConfig(supabaseUrl, supabaseAnonKey)) {
 export { supabase }
 
 // Helper function to create client safely
-function createClientSafely() {
+export function createClientSafely() {
   if (!isValidSupabaseConfig(supabaseUrl, supabaseAnonKey)) {
     throw new Error('Invalid or missing Supabase configuration')
   }
@@ -54,6 +54,238 @@ function createAdminClient() {
 export interface Database {
   public: {
     Tables: {
+      analytics_page_visits: {
+        Row: {
+          id: string
+          session_id: string
+          user_agent?: string
+          ip_address?: string
+          country?: string
+          city?: string
+          region?: string
+          page_path: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          user_agent?: string
+          ip_address?: string
+          country?: string
+          city?: string
+          region?: string
+          page_path: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          user_agent?: string
+          ip_address?: string
+          country?: string
+          city?: string
+          region?: string
+          page_path?: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          created_at?: string
+        }
+      }
+      analytics_daily_visitors: {
+        Row: {
+          id: string
+          date: string
+          session_id: string
+          ip_address?: string
+          country?: string
+          first_visit_at: string
+          total_page_views: number
+        }
+        Insert: {
+          id?: string
+          date: string
+          session_id: string
+          ip_address?: string
+          country?: string
+          first_visit_at?: string
+          total_page_views?: number
+        }
+        Update: {
+          id?: string
+          date?: string
+          session_id?: string
+          ip_address?: string
+          country?: string
+          first_visit_at?: string
+          total_page_views?: number
+        }
+      }
+      analytics_form_submissions: {
+        Row: {
+          id: string
+          session_id: string
+          form_type: string
+          ip_address?: string
+          country?: string
+          city?: string
+          form_data?: Record<string, any>
+          success: boolean
+          error_message?: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          form_type: string
+          ip_address?: string
+          country?: string
+          city?: string
+          form_data?: Record<string, any>
+          success?: boolean
+          error_message?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          form_type?: string
+          ip_address?: string
+          country?: string
+          city?: string
+          form_data?: Record<string, any>
+          success?: boolean
+          error_message?: string
+          created_at?: string
+        }
+      }
+      analytics_ai_analysis: {
+        Row: {
+          id: string
+          session_id: string
+          ip_address?: string
+          country?: string
+          city?: string
+          car_url: string
+          platform: string
+          analysis_success: boolean
+          processing_time_ms?: number
+          ai_score?: number
+          confidence_level?: number
+          error_message?: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          ip_address?: string
+          country?: string
+          city?: string
+          car_url: string
+          platform: string
+          analysis_success?: boolean
+          processing_time_ms?: number
+          ai_score?: number
+          confidence_level?: number
+          error_message?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          ip_address?: string
+          country?: string
+          city?: string
+          car_url?: string
+          platform?: string
+          analysis_success?: boolean
+          processing_time_ms?: number
+          ai_score?: number
+          confidence_level?: number
+          error_message?: string
+          created_at?: string
+        }
+      }
+      analytics_sessions: {
+        Row: {
+          id: string
+          session_id: string
+          ip_address?: string
+          user_agent?: string
+          country?: string
+          city?: string
+          region?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          first_seen_at: string
+          last_seen_at: string
+          total_page_views: number
+          session_duration_seconds: number
+        }
+        Insert: {
+          id?: string
+          session_id: string
+          ip_address?: string
+          user_agent?: string
+          country?: string
+          city?: string
+          region?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          total_page_views?: number
+          session_duration_seconds?: number
+        }
+        Update: {
+          id?: string
+          session_id?: string
+          ip_address?: string
+          user_agent?: string
+          country?: string
+          city?: string
+          region?: string
+          device_type?: string
+          browser?: string
+          os?: string
+          referrer?: string
+          utm_source?: string
+          utm_medium?: string
+          utm_campaign?: string
+          first_seen_at?: string
+          last_seen_at?: string
+          total_page_views?: number
+          session_duration_seconds?: number
+        }
+      }
       car_analyses: {
         Row: {
           id: string
@@ -282,9 +514,15 @@ export class DatabaseService {
     car_info: Record<string, unknown>
     word_count: number
     seo_score: number
+    ai_analysis?: {
+      score: number
+      confidence: number
+    }
   }) {
     const supabase = createClientSafely()
-    const { data: result, error } = await supabase
+    
+    // Try to save with ai_analysis first
+    let { data: result, error } = await supabase
       .from('blog_articles')
       .insert({
         title: data.title,
@@ -296,13 +534,41 @@ export class DatabaseService {
         car_info: data.car_info,
         word_count: data.word_count,
         seo_score: data.seo_score,
+        ai_analysis: data.ai_analysis,
         created_at: new Date().toISOString()
       })
       .select()
       .single()
 
+    // If it fails (possibly due to missing ai_analysis column), try without it
+    if (error && error.message.includes('column "ai_analysis" of relation "blog_articles" does not exist')) {
+      // Fallback to save without ai_analysis column
+      const fallbackResult = await supabase
+        .from('blog_articles')
+        .insert({
+          title: data.title,
+          slug: data.slug,
+          content: data.content,
+          excerpt: data.excerpt,
+          keywords: data.keywords,
+          car_url: data.car_url,
+          car_info: data.car_info,
+          word_count: data.word_count,
+          seo_score: data.seo_score,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+      
+      if (fallbackResult.error) {
+        throw new Error(`Failed to save blog article: ${fallbackResult.error.message}`)
+      }
+      
+      return fallbackResult.data
+    }
+
     if (error) {
-      throw new Error('Failed to save blog article')
+      throw new Error(`Failed to save blog article: ${error.message}`)
     }
 
     return result

@@ -23,7 +23,8 @@
     "openai": "^4.20.1",
     "puppeteer": "^21.6.1",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "sharp": "^0.34.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

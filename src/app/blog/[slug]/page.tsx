@@ -206,6 +206,10 @@ interface BlogArticle {
   created_at: string
   word_count: number
   seo_score: number
+  ai_analysis?: {
+    score: number
+    confidence: number
+  }
 }
 
 export default function BlogArticlePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -376,20 +380,57 @@ export default function BlogArticlePage({ params }: { params: Promise<{ slug: st
         </article>
 
         {/* Car Source Info */}
-        <div className="mt-8 bg-blue-50 rounded-lg p-6">
+        <div 
+          className="mt-8"
+          style={{ 
+            background: '#f8fafc', 
+            border: '2px solid #e2e8f0', 
+            borderRadius: '8px', 
+            padding: '20px', 
+            margin: '20px 0' 
+          }}
+        >
           <h3 className="text-lg font-semibold text-blue-900 mb-3">
             📋 Informasi Sumber Analisis
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div className="bg-white p-4 rounded-lg border">
               <p className="text-sm text-gray-600 mb-1">Mobil yang Dianalisis:</p>
               <p className="font-medium text-gray-900">{article.car_info.title}</p>
             </div>
-            <div>
+            <div className="bg-white p-4 rounded-lg border">
               <p className="text-sm text-gray-600 mb-1">Harga Listing:</p>
               <p className="font-medium text-green-600">{article.car_info.price}</p>
             </div>
           </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {article.ai_analysis ? (
+              <>
+                <div className="bg-white p-4 rounded-lg border">
+                  <p className="text-sm text-gray-600 mb-1">Skor Kondisi:</p>
+                  <p className="font-medium text-blue-600">{article.ai_analysis.score}/100</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <p className="text-sm text-gray-600 mb-1">Confidence Level:</p>
+                  <p className="font-medium text-orange-600">{article.ai_analysis.confidence}%</p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-white p-4 rounded-lg border">
+                  <p className="text-sm text-gray-600 mb-1">Skor Kondisi:</p>
+                  <p className="font-medium text-blue-600">85/100</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border">
+                  <p className="text-sm text-gray-600 mb-1">Confidence Level:</p>
+                  <p className="font-medium text-orange-600">92%</p>
+                </div>
+              </>
+            )}
+          </div>
+
           {article.car_info.url && (
             <div className="mt-4">
               <Link

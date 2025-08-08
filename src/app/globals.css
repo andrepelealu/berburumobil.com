@@ -29,6 +29,83 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+/* Car Loading Animation */
+@keyframes car-drive {
+  0% {
+    transform: translateX(-40px);
+  }
+  100% {
+    transform: translateX(200px);
+  }
+}
+
+@keyframes wheel-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes road-lines {
+  0% {
+    transform: translateX(-20px);
+  }
+  100% {
+    transform: translateX(20px);
+  }
+}
+
+@keyframes smoke {
+  0% {
+    opacity: 0.6;
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translateY(-8px) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.8);
+  }
+}
+
+.animate-car-drive {
+  animation: car-drive 3s ease-in-out infinite;
+}
+
+.animate-wheel-spin {
+  animation: wheel-spin 0.5s linear infinite;
+  transform-origin: center;
+}
+
+.animate-road-lines {
+  animation: road-lines 1s linear infinite;
+}
+
+.animate-smoke {
+  animation: smoke 1s ease-out infinite;
+  animation-delay: 0.5s;
+}
+
+@keyframes bounce-gentle {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-4px);
+  }
+  60% {
+    transform: translateY(-2px);
+  }
+}
+
+.animate-bounce-gentle {
+  animation: bounce-gentle 2s ease-in-out infinite;
+}
+
 /* Blog article content styles */
 .article-content {
   color: #374151 !important;

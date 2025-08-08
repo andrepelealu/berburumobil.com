@@ -272,7 +272,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
         return cleanCarData(carData) as unknown as CarData
       }
     } catch (cheerioError) {
-      console.log('Cheerio scraping failed, trying Puppeteer...', cheerioError)
+      // Fallback to Puppeteer if Cheerio fails
     }
 
     // Fallback to Puppeteer if Cheerio fails
@@ -445,7 +445,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
           const priceText = getTextContent([selector])
           if (priceText && (priceText.includes('Rp') || priceText.includes('RP')) && /\d/.test(priceText)) {
             price = priceText
-            console.log(`Puppeteer found price using ${selector}: ${priceText}`)
+            // Price found via Puppeteer
             break
           }
         }
@@ -456,7 +456,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
                            document.querySelector('meta[property="og:price:amount"]')?.getAttribute('content')
           if (metaPrice) {
             price = `Rp ${metaPrice}`
-            console.log(`Puppeteer found price in meta: ${price}`)
+            // Price found in meta tags
           }
         }
         
@@ -469,7 +469,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
               const elementText = element.textContent?.trim() || ''
               if (elementText.length < 50 && !elementText.includes('\n')) {
                 price = text
-                console.log(`Puppeteer found price in broad search: ${text}`)
+                // Price found via broad search
                 break
               }
             }
@@ -727,7 +727,7 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
   // Prioritize unique, high-quality images (remove duplicates and select best)
   const uniqueImages = [...new Set(validImages)]
   
-  // Take up to 15 images for comprehensive analysis
+  // Take up to 15 images for comprehensive analysis with fast parallel processing
   const selectedImages = uniqueImages.slice(0, 15)
   
   // Variables to track for background storage
@@ -751,18 +751,26 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
     
     // Start background image storage (don't wait for it)
     setImmediate(() => {
-      console.log(`Starting background storage of ${selectedImages.length} images to Supabase S3 (carId: ${carId})...`)
-      ImageStorageService.downloadAndStoreImages(selectedImages, carId!)
+        ImageStorageService.downloadAndStoreImages(selectedImages, carId!)
         .then(storedUrls => {
-          console.log(`✅ Background storage completed: ${storedUrls.length} images stored for carId: ${carId}`)
+          // Background storage completed silently
         })
         .catch(error => {
-          console.error(`❌ Background image storage failed for carId: ${carId}`, error)
+          // Background image storage failed silently
         })
     })
 
-    // Use original scrape URLs directly for immediate AI analysis
-    console.log(`Using ${selectedImages.length} original URLs for immediate AI analysis`)
+    // Download and convert images to base64 in parallel for immediate AI analysis
+    const imageProcessStartTime = Date.now()
+    const base64Images = await downloadImagesAsBase64(selectedImages)
+    const imageProcessTime = Date.now() - imageProcessStartTime
+    
+    // Image processing completed
+
+    if (base64Images.length === 0) {
+      // No images processed, using fallback analysis
+      return fallbackAnalysis(carTitle, 0)
+    }
 
     // Create the enhanced vision analysis prompt with strict JSON formatting in Indonesian
     const prompt = `Anda adalah seorang inspector mobil berpengalaman di Indonesia. Analisis ${selectedImages.length} foto mobil untuk ${carTitle} dengan DETAIL dan OBJEKTIF.
@@ -811,25 +819,26 @@ Kembalikan HANYA struktur JSON ini (dalam Bahasa Indonesia):
   }
 }
 
-KRITERIA PENILAIAN SEIMBANG (dengan ${selectedImages.length} foto):
-- Skor 90-98: Kondisi luar biasa, foto sangat komprehensif (15+ foto berkualitas tinggi)
-- Skor 85-89: Kondisi sangat baik, foto sangat lengkap (10-14 foto berkualitas)
-- Skor 75-84: Kondisi baik, foto memadai, hanya masalah kecil (8-9 foto)
-- Skor 65-74: Kondisi cukup, beberapa kekhawatiran atau foto tidak lengkap (5-7 foto)
-- Skor 50-64: Perlu perhatian, ada masalah atau foto terbatas (<5 foto)
-- Skor 30-49: Kondisi buruk atau foto sangat terbatas/mencurigakan
+KRITERIA PENILAIAN SEIMBANG (dengan ${base64Images.length} foto berkualitas tinggi):
+- Skor 90-98: Kondisi luar biasa, foto sangat komprehensif (12-15 foto berkualitas tinggi)
+- Skor 85-89: Kondisi sangat baik, foto sangat lengkap (10-11 foto berkualitas)
+- Skor 75-84: Kondisi baik, foto memadai, hanya masalah kecil (6-9 foto)
+- Skor 65-74: Kondisi cukup, beberapa kekhawatiran atau foto tidak lengkap (4-5 foto)
+- Skor 50-64: Perlu perhatian, ada masalah atau foto terbatas (2-3 foto)
+- Skor 30-49: Kondisi buruk atau hanya 1 foto yang dapat diproses
 
 EVALUASI JUMLAH FOTO:
-- ${selectedImages.length} foto: ${
-  selectedImages.length >= 15 ? 'Cakupan LUAR BIASA - kepercayaan sangat tinggi' :
-  selectedImages.length >= 10 ? 'Cakupan SANGAT BAIK - kepercayaan tinggi' :
-  selectedImages.length >= 8 ? 'Cakupan BAIK - kepercayaan menengah-tinggi' :
-  selectedImages.length >= 5 ? 'Cakupan MEMADAI - kepercayaan menengah' :
-  'Cakupan TERBATAS - kepercayaan rendah'
+- ${base64Images.length} foto berkualitas tinggi: ${
+  base64Images.length >= 12 ? 'Cakupan LUAR BIASA - kepercayaan sangat tinggi' :
+  base64Images.length >= 10 ? 'Cakupan SANGAT BAIK - kepercayaan tinggi' :
+  base64Images.length >= 6 ? 'Cakupan BAIK - kepercayaan menengah-tinggi' :
+  base64Images.length >= 4 ? 'Cakupan MEMADAI - kepercayaan menengah' :
+  base64Images.length >= 2 ? 'Cakupan TERBATAS - kepercayaan rendah' :
+  'Cakupan SANGAT TERBATAS - kepercayaan sangat rendah'
 }
 
 FOKUS ANALISIS:
-- Manfaatkan SEMUA ${selectedImages.length} foto untuk penilaian komprehensif
+- Manfaatkan SEMUA ${base64Images.length} foto berkualitas tinggi untuk penilaian komprehensif
 - Identifikasi area yang terlihat jelas vs yang tidak ditampilkan
 - Beri kredit untuk foto berkualitas dan sudut yang baik
 - Waspada terhadap tanda bahaya tapi jangan paranoid
@@ -837,21 +846,24 @@ FOKUS ANALISIS:
 
 PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada format markdown, tidak ada blok kode. Hanya JSON murni yang dapat diparse langsung.`
 
-    // Prepare image content for OpenAI using direct scrape URLs
-    const imageContent = selectedImages.map(url => ({
+    // Prepare image content for OpenAI using base64 data
+    const imageContent = base64Images.map(base64 => ({
       type: "image_url" as const,
       image_url: {
-        url: url,
+        url: `data:image/jpeg;base64,${base64}`,
         detail: "high" as const
       }
     }))
 
+    // Sending images to OpenAI Vision API
+    const openaiStartTime = Date.now()
+    
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: "Anda adalah seorang inspector mobil profesional di Indonesia. Anda HARUS merespons dengan format JSON yang valid SAJA. Tidak ada teks tambahan, penjelasan, atau format markdown. Kembalikan hanya objek JSON yang dapat langsung diparse. Gunakan Bahasa Indonesia untuk semua teks dalam respons JSON."
+          content: "Anda inspector mobil profesional Indonesia. Respons HANYA JSON valid. Bahasa Indonesia."
         },
         {
           role: "user",
@@ -861,10 +873,13 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
           ]
         }
       ],
-      max_tokens: 1500,
-      temperature: 0.3,
+      max_tokens: 1200, // Reduced tokens for faster response
+      temperature: 0.2, // Lower temperature for consistency
       response_format: { type: "json_object" }
     })
+    
+    const openaiTime = Date.now() - openaiStartTime
+    // OpenAI API call completed
 
     const analysisText = response.choices[0]?.message?.content
     if (!analysisText) {
@@ -895,24 +910,25 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
       analysisData = JSON.parse(jsonString)
       
     } catch (parseError) {
-      console.error('Failed to parse OpenAI JSON response:', parseError)
-      console.error('Raw response text:', analysisText.substring(0, 500) + '...')
+      // Failed to parse OpenAI JSON response - using fallback
       // Fallback to text analysis
       return parseTextAnalysis(analysisText, carTitle)
     }
 
     // Validate and return structured data with balanced scoring
     const rawScore = analysisData.score || 65 // Balanced default
-    // Enhanced balanced scoring for up to 20 images - allow higher scores with excellent photo coverage
-    const balancedScore = selectedImages.length >= 15 
-      ? Math.max(35, Math.min(98, rawScore)) // 15+ photos: allow up to 98 (comprehensive coverage)
-      : selectedImages.length >= 10 
-      ? Math.max(30, Math.min(95, rawScore)) // 10-14 photos: allow up to 95 (very good coverage)
-      : selectedImages.length >= 8 
-      ? Math.max(30, Math.min(90, rawScore)) // 8-9 photos: allow up to 90 (good coverage)
-      : selectedImages.length >= 5 
-      ? Math.max(25, Math.min(85, rawScore)) // 5-7 photos: allow up to 85 (adequate coverage)
-      : Math.max(20, Math.min(75, rawScore)) // <5 photos: max 75 (limited coverage)
+    // Enhanced balanced scoring for up to 15 high-quality processed images
+    const balancedScore = base64Images.length >= 12 
+      ? Math.max(35, Math.min(98, rawScore)) // 12-15 photos: allow up to 98 (comprehensive coverage)
+      : base64Images.length >= 10 
+      ? Math.max(30, Math.min(95, rawScore)) // 10-11 photos: allow up to 95 (very good coverage)
+      : base64Images.length >= 6 
+      ? Math.max(30, Math.min(90, rawScore)) // 6-9 photos: allow up to 90 (good coverage)
+      : base64Images.length >= 4 
+      ? Math.max(25, Math.min(85, rawScore)) // 4-5 photos: allow up to 85 (adequate coverage)
+      : base64Images.length >= 2 
+      ? Math.max(20, Math.min(80, rawScore)) // 2-3 photos: allow up to 80 (limited coverage)
+      : Math.max(15, Math.min(70, rawScore)) // 1 photo: max 70 (very limited coverage)
     
     const finalResult = {
       score: balancedScore,
@@ -924,12 +940,13 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
       ],
       recommendation: analysisData.recommendation || `⚠️ Berdasarkan analisis foto ${carTitle}, terdapat keterbatasan dalam penilaian visual. SANGAT DISARANKAN untuk menggunakan jasa inspeksi teknisi profesional sebelum memutuskan pembelian.`,
       confidence: Math.max(1, Math.min(100, analysisData.confidence || (
-        selectedImages.length >= 15 ? 90 : // 15+ photos: very high confidence
-        selectedImages.length >= 10 ? 85 : // 10-14 photos: high confidence  
-        selectedImages.length >= 8 ? 80 :  // 8-9 photos: good confidence
-        selectedImages.length >= 5 ? 70 :  // 5-7 photos: moderate confidence
-        60                                 // <5 photos: low confidence
-      ))), // Enhanced photo-based confidence
+        base64Images.length >= 12 ? 98 : // 12-15 high-quality photos: very high confidence
+        base64Images.length >= 10 ? 95 : // 10-11 photos: high confidence  
+        base64Images.length >= 6 ? 90 :  // 6-9 photos: good confidence
+        base64Images.length >= 4 ? 85 :  // 4-5 photos: moderate confidence
+        base64Images.length >= 2 ? 75 :  // 2-3 photos: low confidence
+        60                              // 1 photo: very low confidence
+      ))), // Enhanced photo-based confidence for processed images
       riskLevel: ['LOW', 'MEDIUM', 'HIGH'].includes(analysisData.riskLevel) ? analysisData.riskLevel : 'MEDIUM',
       scamRisk: analysisData.scamRisk ? {
         level: ['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH'].includes(analysisData.scamRisk.level) 
@@ -967,15 +984,15 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
       backgroundStorageStatus: 'processing'
     }
     
-    console.log(`✅ AI analysis completed for ${selectedImages.length} images`)
-    console.log(`📁 Background storage initiated for carId: ${carId}`)
+    const totalAnalysisTime = Date.now() - imageProcessStartTime
+    // AI analysis completed successfully
     
     return finalResult
 
   } catch (error) {
-    console.error('Error calling OpenAI Vision API:', error)
+    console.error('AI Analysis failed:', error instanceof Error ? error.message : 'Unknown error')
     
-    console.log(`❌ AI analysis failed, background storage may still be processing for carId: ${carId}`)
+    // Background storage may still be processing
     
     return fallbackAnalysis(carTitle, selectedImages?.length || 0)
   }
@@ -1068,4 +1085,87 @@ function extractNumberFromText(text: string, key: string): number | null {
   const regex = new RegExp(`${key}['":\\s]*([0-9]+)`, 'i')
   const match = text.match(regex)
   return match ? parseInt(match[1]) : null
+}
+
+// Fast parallel image download and base64 conversion - optimized for 15 images
+async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
+  const sharp = await import('sharp')
+  
+  // Process images in batches of 5 to prevent overwhelming the server/memory
+  const batchSize = 5
+  const batches: string[][] = []
+  
+  for (let i = 0; i < imageUrls.length; i += batchSize) {
+    batches.push(imageUrls.slice(i, i + batchSize))
+  }
+  
+  // Processing images in batches
+  
+  const allResults: string[] = []
+  
+  // Process batches sequentially, but images within each batch in parallel
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+    const batch = batches[batchIndex]
+    const batchStartTime = Date.now()
+    // Processing batch in parallel
+    
+    const batchPromises = batch.map(async (url, index) => {
+      const globalIndex = batchIndex * batchSize + index
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          },
+          signal: AbortSignal.timeout(8000) // 8 second timeout per image (faster)
+        })
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+        
+        const buffer = await response.arrayBuffer()
+        
+        // Optimized processing for faster results
+        // Max 600px width, 75% quality JPEG (smaller but still good quality)
+        const processedBuffer = await sharp.default(Buffer.from(buffer))
+          .resize(600, null, { 
+            withoutEnlargement: true,
+            fastShrinkOnLoad: true,
+            kernel: sharp.kernel.lanczos2 // Faster kernel
+          })
+          .jpeg({ 
+            quality: 75,
+            progressive: true,
+            mozjpeg: true,
+            optimiseScans: true
+          })
+          .toBuffer()
+        
+        const base64 = processedBuffer.toString('base64')
+        // Image processed successfully
+        
+        return base64
+      } catch (error) {
+        // Failed to process image
+        return null
+      }
+    })
+    
+    // Wait for current batch to complete
+    const batchResults = await Promise.all(batchPromises)
+    const validBatchResults = batchResults.filter(img => img !== null) as string[]
+    allResults.push(...validBatchResults)
+    
+    const batchTime = Date.now() - batchStartTime
+    // Batch processing completed
+    
+    // Small delay between batches to prevent overwhelming the server
+    if (batchIndex < batches.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+  
+  // All image processing completed
+  
+  return allResults
 }

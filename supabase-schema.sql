@@ -65,6 +65,7 @@ CREATE TABLE blog_articles (
   car_info JSONB NOT NULL,
   word_count INTEGER DEFAULT 0,
   seo_score INTEGER DEFAULT 0,
+  ai_analysis JSONB,
   published BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

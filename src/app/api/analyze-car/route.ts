@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { scrapeCarFromUrl, analyzeImagesWithAI, type CarData } from '@/lib/scrapers'
 import { DatabaseService } from '@/lib/supabase'
+import { trackAIAnalysis, getClientIP, getPlatformFromUrl } from '@/lib/analytics'
 
 export async function POST(request: NextRequest) {
+  const startTime = Date.now()
+  let scrapeTime = 0
+  let aiAnalysisTime = 0
+  let dbSaveTime = 0
+  
   try {
     const { url } = await request.json()
 
@@ -33,6 +39,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if we have a cached analysis for this URL first
+    const cacheStartTime = Date.now()
     try {
       // Only try cache lookup if Supabase is properly configured
       if (process.env.NEXT_PUBLIC_SUPABASE_URL && 
@@ -40,7 +47,11 @@ export async function POST(request: NextRequest) {
           !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your_supabase')) {
         
         const cachedAnalysis = await DatabaseService.getCarAnalysisByUrl(sanitizedUrl)
+        const cacheTime = Date.now() - cacheStartTime
+        
         if (cachedAnalysis) {
+          const totalTime = Date.now() - startTime
+          
           // Return cached result in the same format as fresh analysis
           const result = {
             carInfo: {
@@ -55,34 +66,26 @@ export async function POST(request: NextRequest) {
             },
             ...cachedAnalysis.ai_analysis,
             _cached: true,
-            _cacheDate: cachedAnalysis.created_at
+            _cacheDate: cachedAnalysis.created_at,
+            _responseTime: `${(totalTime/1000).toFixed(2)}s`
           }
           
           return NextResponse.json(result)
         }
       }
     } catch (cacheError) {
-      console.log('Cache check failed, proceeding with fresh analysis:', cacheError)
+      // Continue with fresh analysis if cache fails
     }
     
     // Scrape car data from the provided URL
+    const scrapeStartTime = Date.now()
     const carData = await scrapeCarFromUrl(sanitizedUrl)
-    console.log('Scraped car data:', {
-      title: carData.title,
-      price: carData.price,
-      imageCount: carData.images.length,
-      images: carData.images.slice(0, 3) // Log first 3 images
-    })
+    scrapeTime = Date.now() - scrapeStartTime
     
     // Analyze images with AI
+    const aiStartTime = Date.now()
     const aiAnalysis = await analyzeImagesWithAI(carData.images, carData.title)
-    console.log('AI Analysis complete:', {
-      score: aiAnalysis.score,
-      confidence: aiAnalysis.confidence,
-      riskLevel: aiAnalysis.riskLevel,
-      hasDetailedAnalysis: !!aiAnalysis.detailedAnalysis,
-      recommendationLength: aiAnalysis.recommendation?.length || 0
-    })
+    aiAnalysisTime = Date.now() - aiStartTime
     
     // Combine the data
     const analysisResult = {
@@ -112,6 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Save to Supabase database
+    const dbStartTime = Date.now()
     try {
       const userIp = request.headers.get('x-forwarded-for') || 
                     request.headers.get('x-real-ip') || 
@@ -125,7 +129,7 @@ export async function POST(request: NextRequest) {
         user_ip: userIp
       })
 
-      console.log('Analysis saved to database:', savedAnalysis.id)
+      dbSaveTime = Date.now() - dbStartTime
 
       // Generate SEO blog article asynchronously in background (all environments)
       // This runs independently and doesn't affect user response time
@@ -133,21 +137,22 @@ export async function POST(request: NextRequest) {
                                !aiAnalysis.recommendation.includes('DATA SIMULASI') &&
                                !aiAnalysis.recommendation.includes('ANALISIS SIMULASI')
       
-      if (isRealAiAnalysis || process.env.NODE_ENV === 'development') {
-        // Generate blog article asynchronously in background
-        // In development, generate for all analysis (even mock data)
+      // Always generate blog articles when analysis is successful
+      if (isRealAiAnalysis) {
+        // Generate blog article asynchronously in background - no timeout needed
         setImmediate(() => {
-          generateBlogArticle(url, carData, aiAnalysis).catch(error => {
-            console.error('Background blog generation failed:', error)
+          generateBlogArticle(sanitizedUrl, carData, aiAnalysis).catch(() => {
+            // Silent failure for background blog generation
           })
         })
       }
 
     } catch (dbError) {
-      console.error('Failed to save to database:', dbError)
-      // Continue without failing the request
+      dbSaveTime = Date.now() - dbStartTime
+      // Continue without failing the request - silent database failure
     }
 
+    const totalTime = Date.now() - startTime
     const result = {
       carInfo: {
         title: carData.title,
@@ -162,6 +167,7 @@ export async function POST(request: NextRequest) {
       ...finalAnalysis,
       _cached: false,
       _freshAnalysis: true,
+      _responseTime: `${(totalTime/1000).toFixed(2)}s`,
       // Add storage information for debugging/inspection
       _debug: {
         imagesStoredInSupabase: false,
@@ -171,25 +177,63 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    console.log('Final API response structure:', {
-      hasCarInfo: !!result.carInfo,
-      score: result.score,
-      confidence: result.confidence,
-      riskLevel: result.riskLevel,
-      recommendationLength: result.recommendation?.length || 0,
-      hasDetailedAnalysis: !!result.detailedAnalysis,
-      findingsCount: result.findings?.length || 0
-    })
+    // Performance tracking removed for production
+    
+    // Track AI analysis in analytics
+    try {
+      const clientIP = getClientIP(request)
+      const platform = getPlatformFromUrl(sanitizedUrl)
+      const userAgent = request.headers.get('user-agent') || undefined
+      
+      await trackAIAnalysis(
+        sanitizedUrl,
+        platform,
+        true, // success
+        totalTime,
+        result.score,
+        result.confidence,
+        undefined, // no error message
+        userAgent,
+        clientIP || undefined
+      )
+    } catch (analyticsError) {
+      // Silent analytics failure
+    }
     
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error analyzing car:', error)
+    const totalTime = Date.now() - startTime
+    // Log only critical errors for production monitoring
+    console.error('Car analysis failed:', error instanceof Error ? error.message : 'Unknown error')
+    
+    // Track failed AI analysis in analytics
+    try {
+      const clientIP = getClientIP(request)
+      const platform = getPlatformFromUrl(sanitizedUrl || '')
+      const userAgent = request.headers.get('user-agent') || undefined
+      const errorMessage = error instanceof Error ? error.message : 'Gagal menganalisis mobil'
+      
+      await trackAIAnalysis(
+        sanitizedUrl || 'unknown',
+        platform,
+        false, // failed
+        totalTime,
+        undefined, // no score
+        undefined, // no confidence
+        errorMessage,
+        userAgent,
+        clientIP || undefined
+      )
+    } catch (analyticsError) {
+      // Silent analytics failure
+    }
     
     // Return user-friendly error messages
     const errorMessage = error instanceof Error ? error.message : 'Gagal menganalisis mobil'
     return NextResponse.json({ 
       error: errorMessage,
-      details: 'Pastikan link valid dan dapat diakses. Beberapa platform mungkin memerlukan akses khusus.'
+      details: 'Pastikan link valid dan dapat diakses. Beberapa platform mungkin memerlukan akses khusus.',
+      _responseTime: `${(totalTime/1000).toFixed(2)}s`
     }, { status: 500 })
   }
 }
@@ -231,45 +275,19 @@ async function generateBlogArticle(carUrl: string, carData: CarData, aiAnalysis?
   riskLevel: string
 }) {
   try {
-    // Background blog generation - runs silently
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                   (process.env.NODE_ENV === 'production' ? 'https://berburumobil.com' : 'http://localhost:3000')
+    // Import and call the blog generation logic directly to avoid HTTP call to self
+    const { generateBlogArticleInternal } = await import('@/lib/blog-generator')
     
-    const response = await fetch(`${baseUrl}/api/blog/generate`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        carUrl,
-        carData,
-        aiAnalysis
-      }),
-      // Add timeout for background requests
-      signal: AbortSignal.timeout(30000) // 30 second timeout
+    const result = await generateBlogArticleInternal({
+      carUrl,
+      carData,
+      aiAnalysis
     })
-
-    // Check response and handle blog generation in all environments
-    if (!response.ok) {
-      console.error('Background blog generation HTTP error:', response.status)
-      return
-    }
-
-    const contentType = response.headers.get('content-type')
-    if (!contentType || !contentType.includes('application/json')) {
-      console.error('Background blog generation returned non-JSON response')
-      return
-    }
-
-    const result = await response.json()
     
-    if (result.success) {
-      console.log('✅ Background blog article generated:', result.article.slug)
-    } else {
-      console.error('Background blog generation failed:', result.error)
+    if (!result.success) {
+      throw new Error(result.error || 'Blog generation failed')
     }
   } catch (error) {
-    // Log errors in all environments for debugging
-    console.error('Background blog generation error:', error)
+    // Silent failure for background blog generation
   }
 }

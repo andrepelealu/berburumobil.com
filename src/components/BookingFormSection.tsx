@@ -2,6 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { PhoneIcon, CalendarIcon, LinkIcon, CheckIcon, XMarkIcon } from '@heroicons/react/24/outline'
+import CarLoadingAnimation from './CarLoadingAnimation'
+import DynamicLoadingText from './DynamicLoadingText'
+import { trackFormSubmission } from '@/lib/analytics'
 
 interface CarInfo {
   title?: string
@@ -217,10 +220,57 @@ export default function BookingFormSection() {
       if (result.success) {
         setBookingResult(result)
         setShowConfirmation(true)
+        
+        // Track successful form submission
+        try {
+          const ipResponse = await fetch('/api/get-ip')
+          const { ip } = await ipResponse.json()
+          
+          await trackFormSubmission(
+            'booking',
+            {
+              serviceType: formData.serviceType,
+              addObd: formData.addObd,
+              location: formData.location,
+              totalAmount: calculateTotal(),
+              hasAiAnalysis: !!aiAnalysis,
+              aiScore: aiAnalysis?.score,
+              platform: formData.carUrl ? new URL(formData.carUrl).hostname : undefined
+            },
+            true,
+            undefined,
+            navigator.userAgent,
+            ip
+          )
+        } catch (analyticsError) {
+          // Silent analytics failure
+        }
       } else {
         throw new Error(result.error || 'Failed to create booking')
       }
     } catch (error) {
+      // Track failed form submission
+      try {
+        const ipResponse = await fetch('/api/get-ip')
+        const { ip } = await ipResponse.json()
+        
+        await trackFormSubmission(
+          'booking',
+          {
+            serviceType: formData.serviceType,
+            addObd: formData.addObd,
+            location: formData.location,
+            totalAmount: calculateTotal()
+          },
+          false,
+          error instanceof Error ? error.message : 'Unknown error',
+          navigator.userAgent,
+          ip
+        )
+      } catch (analyticsError) {
+        // Silent analytics failure
+      }
+      
       alert('Gagal membuat booking. Silakan coba lagi.')
     } finally {
       setIsSubmitting(false)
@@ -288,10 +338,16 @@ export default function BookingFormSection() {
               <button
                 onClick={handleAnalyzeUrl}
                 disabled={!formData.carUrl.trim() || isAnalyzing}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-6 rounded-lg transition duration-300"
+                className={`w-full font-semibold py-4 px-6 rounded-lg transition duration-300 ${
+                  isAnalyzing 
+                    ? 'bg-white border-2 border-blue-200 text-blue-600' 
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                } ${(!formData.carUrl.trim() && !isAnalyzing) ? 'bg-gray-400 text-white' : ''}`}
               >
-                {isAnalyzing ? 'Menganalisis...' : '🤖 Analisis AI Sekarang'}
+                {isAnalyzing ? <CarLoadingAnimation showText={false} /> : '🤖 Analisis AI Sekarang'}
               </button>
+              
+              {isAnalyzing && <DynamicLoadingText />}
             </div>
           )}
         </div>
