@@ -137,11 +137,23 @@ export async function POST(request: NextRequest) {
       
       // Always generate blog articles when analysis is successful
       if (isRealAiAnalysis) {
-        // Generate blog article asynchronously in background - no timeout needed
-        setImmediate(() => {
-          generateBlogArticle(sanitizedUrl, carData, aiAnalysis).catch(() => {
-            // Silent failure for background blog generation
+        // Trigger background blog generation via webhook (non-blocking)
+        const host = request.headers.get('host')
+        const protocol = request.headers.get('x-forwarded-proto') || 'http'
+        const baseUrl = host ? `${protocol}://${host}` : 'http://localhost:3000'
+        
+        fetch(`${baseUrl}/api/generate-blog-background`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            carUrl: sanitizedUrl,
+            carData,
+            aiAnalysis
           })
+        }).catch(() => {
+          // Silent failure for background blog generation
         })
       }
 
@@ -266,26 +278,4 @@ function calculateEstimatedValue(carData: CarData): {
   }
 }
 
-async function generateBlogArticle(carUrl: string, carData: CarData, aiAnalysis?: {
-  score: number
-  recommendation: string
-  confidence: number
-  riskLevel: string
-}) {
-  try {
-    // Import and call the blog generation logic directly to avoid HTTP call to self
-    const { generateBlogArticleInternal } = await import('@/lib/blog-generator')
-    
-    const result = await generateBlogArticleInternal({
-      carUrl,
-      carData,
-      aiAnalysis
-    })
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Blog generation failed')
-    }
-  } catch (_error) {
-    // Silent failure for background blog generation
-  }
-}
+// Blog generation moved to separate webhook endpoint for Vercel compatibility

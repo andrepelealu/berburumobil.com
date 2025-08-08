@@ -7,6 +7,12 @@
     "src/app/api/blog/generate/route.ts": {
       "maxDuration": 45
     },
+    "src/app/api/generate-blog-background/route.ts": {
+      "maxDuration": 45
+    },
+    "src/app/api/analyze-car-streaming/route.ts": {
+      "maxDuration": 60
+    },
     "src/app/api/**/*.ts": {
       "maxDuration": 30
     }
