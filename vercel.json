@@ -1,6 +1,12 @@
 {
   "version": 2,
   "functions": {
+    "src/app/api/analyze-car/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/blog/generate/route.ts": {
+      "maxDuration": 45
+    },
     "src/app/api/**/*.ts": {
       "maxDuration": 30
     }

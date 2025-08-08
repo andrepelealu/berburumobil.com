@@ -1,6 +1,7 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
-import puppeteer from 'puppeteer'
+import puppeteer from 'puppeteer-core'
+import chromium from '@sparticuz/chromium'
 import { cleanCarData, extractYearFromTitle, cleanAndFormatPrice } from './utils'
 import { ImageStorageService } from './image-storage'
 import crypto from 'crypto'
@@ -276,17 +277,21 @@ async function scrapeOLX(url: string): Promise<CarData> {
     }
 
     // Fallback to Puppeteer if Cheerio fails
-    const browser = await puppeteer.launch({ 
-      headless: true,
-      args: [
-        '--no-sandbox', 
+    const isProduction = process.env.NODE_ENV === 'production'
+    
+    const browser = await puppeteer.launch({
+      args: isProduction ? chromium.args : [
+        '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu'
-      ]
+      ],
+      defaultViewport: { width: 1280, height: 720 },
+      executablePath: isProduction ? await chromium.executablePath() : undefined,
+      headless: true,
     })
     
     const page = await browser.newPage()
@@ -294,7 +299,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
     
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 })
-      await page.waitForTimeout(3000) // Wait for dynamic content
+      await new Promise(resolve => setTimeout(resolve, 3000)) // Wait for dynamic content
       
       const carData = await page.evaluate(() => {
         const getTextContent = (selectors: string[]): string => {
