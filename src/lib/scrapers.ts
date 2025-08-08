@@ -271,7 +271,7 @@ async function scrapeOLX(url: string): Promise<CarData> {
         }
         return cleanCarData(carData) as unknown as CarData
       }
-    } catch (cheerioError) {
+    } catch (_cheerioError) {
       // Fallback to Puppeteer if Cheerio fails
     }
 
@@ -752,10 +752,10 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
     // Start background image storage (don't wait for it)
     setImmediate(() => {
         ImageStorageService.downloadAndStoreImages(selectedImages, carId!)
-        .then(storedUrls => {
+        .then(_storedUrls => {
           // Background storage completed silently
         })
-        .catch(error => {
+        .catch(_error => {
           // Background image storage failed silently
         })
     })
@@ -763,7 +763,7 @@ export async function analyzeImagesWithAI(images: string[], carTitle: string): P
     // Download and convert images to base64 in parallel for immediate AI analysis
     const imageProcessStartTime = Date.now()
     const base64Images = await downloadImagesAsBase64(selectedImages)
-    const imageProcessTime = Date.now() - imageProcessStartTime
+    const _imageProcessTime = Date.now() - imageProcessStartTime
     
     // Image processing completed
 
@@ -878,7 +878,7 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
       response_format: { type: "json_object" }
     })
     
-    const openaiTime = Date.now() - openaiStartTime
+    const _openaiTime = Date.now() - openaiStartTime
     // OpenAI API call completed
 
     const analysisText = response.choices[0]?.message?.content
@@ -984,7 +984,7 @@ PENTING: Kembalikan HANYA objek JSON. Tidak ada teks penjelasan, tidak ada forma
       backgroundStorageStatus: 'processing'
     }
     
-    const totalAnalysisTime = Date.now() - imageProcessStartTime
+    const _totalAnalysisTime = Date.now() - imageProcessStartTime
     // AI analysis completed successfully
     
     return finalResult
@@ -1110,7 +1110,7 @@ async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
     // Processing batch in parallel
     
     const batchPromises = batch.map(async (url, index) => {
-      const globalIndex = batchIndex * batchSize + index
+      const _globalIndex = batchIndex * batchSize + index
       try {
         const response = await fetch(url, {
           headers: {
@@ -1145,7 +1145,7 @@ async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
         // Image processed successfully
         
         return base64
-      } catch (error) {
+      } catch (_error) {
         // Failed to process image
         return null
       }
@@ -1156,7 +1156,7 @@ async function downloadImagesAsBase64(imageUrls: string[]): Promise<string[]> {
     const validBatchResults = batchResults.filter(img => img !== null) as string[]
     allResults.push(...validBatchResults)
     
-    const batchTime = Date.now() - batchStartTime
+    const _batchTime = Date.now() - batchStartTime
     // Batch processing completed
     
     // Small delay between batches to prevent overwhelming the server

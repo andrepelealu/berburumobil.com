@@ -78,7 +78,7 @@ export async function generateBlogArticleInternal(params: {
             processingTime: `${totalTime}ms`
           }
         }
-      } catch (dbError) {
+      } catch (_dbError) {
         // Database check failed, proceeding with generation
       }
 
@@ -101,7 +101,7 @@ export async function generateBlogArticleInternal(params: {
           }
         })
         // SEO article saved successfully
-      } catch (dbError) {
+      } catch (_dbError) {
         // Database save failed, using demo mode
         // Create mock saved article
         savedArticle = {
@@ -249,7 +249,7 @@ Buatlah artikel yang akan membantu pembaca membuat keputusan yang tepat dalam me
     let articleData
     try {
       articleData = JSON.parse(articleText)
-    } catch (parseError) {
+    } catch (_parseError) {
       // Failed to parse OpenAI SEO response
       throw new Error('Failed to parse AI response')
     }
@@ -381,40 +381,4 @@ function generateSlug(title: string): string {
   return `${baseSlug}-${timestamp}-${randomStr}`
 }
 
-function generateAIAnalysisSection(aiAnalysis: {
-  score: number
-  recommendation: string
-  confidence: number
-  riskLevel: string
-}): string {
-  const getRiskLevel = (riskLevel: string) => {
-    switch (riskLevel.toUpperCase()) {
-      case 'LOW': return 'Rendah'
-      case 'MEDIUM': return 'Sedang' 
-      case 'HIGH': return 'Tinggi'
-      default: return 'Unknown'
-    }
-  }
-
-  return `
-<div style="background: #f8fafc; border-left: 3px solid #3b82f6; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
-  <h4 style="color: #1e40af; font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">🤖 Analisis AI</h4>
-  
-  <div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;">
-    <div style="background: #eff6ff; padding: 8px 12px; border-radius: 6px; flex: 1; min-width: 120px; text-align: center; border: 1px solid #dbeafe;">
-      <div style="color: #6b7280; font-size: 12px; margin-bottom: 2px;">Skor Kondisi</div>
-      <div style="color: #1e40af; font-size: 18px; font-weight: 700;">${aiAnalysis.score}/100</div>
-    </div>
-    
-    <div style="background: #fff7ed; padding: 8px 12px; border-radius: 6px; flex: 1; min-width: 120px; text-align: center; border: 1px solid #fed7aa;">
-      <div style="color: #6b7280; font-size: 12px; margin-bottom: 2px;">Tingkat Akurasi</div>
-      <div style="color: #c2410c; font-size: 18px; font-weight: 700;">${aiAnalysis.confidence}%</div>
-    </div>
-  </div>
-  
-  <p style="color: #6b7280; font-size: 14px; margin: 0; line-height: 1.4;">
-    <strong>Rekomendasi:</strong> ${aiAnalysis.recommendation}
-  </p>
-</div>
-  `
-}
+// Removed unused generateAIAnalysisSection function

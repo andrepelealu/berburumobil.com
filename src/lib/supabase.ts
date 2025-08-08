@@ -147,7 +147,7 @@ export interface Database {
           ip_address?: string
           country?: string
           city?: string
-          form_data?: Record<string, any>
+          form_data?: Record<string, unknown>
           success: boolean
           error_message?: string
           created_at: string
@@ -159,7 +159,7 @@ export interface Database {
           ip_address?: string
           country?: string
           city?: string
-          form_data?: Record<string, any>
+          form_data?: Record<string, unknown>
           success?: boolean
           error_message?: string
           created_at?: string
@@ -171,7 +171,7 @@ export interface Database {
           ip_address?: string
           country?: string
           city?: string
-          form_data?: Record<string, any>
+          form_data?: Record<string, unknown>
           success?: boolean
           error_message?: string
           created_at?: string
@@ -522,7 +522,7 @@ export class DatabaseService {
     const supabase = createClientSafely()
     
     // Try to save with ai_analysis first
-    let { data: result, error } = await supabase
+    const { data: result, error } = await supabase
       .from('blog_articles')
       .insert({
         title: data.title,

@@ -65,7 +65,7 @@ async function getLocationFromIP(ip: string) {
         region: data.region
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Silent failure for geolocation
   }
   return { country: null, city: null, region: null }
@@ -86,7 +86,7 @@ export async function trackPageVisit(pagePath: string, userAgent?: string, ipAdd
     const deviceInfo = getDeviceInfo(userAgent || (typeof window !== 'undefined' ? navigator.userAgent : ''))
     
     // Track page visit
-    const { error: visitError } = await supabase
+    const { error: _visitError } = await supabase
       .from('analytics_page_visits')
       .insert({
         session_id: sessionId,
@@ -105,7 +105,7 @@ export async function trackPageVisit(pagePath: string, userAgent?: string, ipAdd
       })
     
     // Track/update session
-    const { error: sessionError } = await supabase
+    const { error: _sessionError } = await supabase
       .from('analytics_sessions')
       .upsert({
         session_id: sessionId,
@@ -129,7 +129,7 @@ export async function trackPageVisit(pagePath: string, userAgent?: string, ipAdd
     
     // Track daily unique visitor
     const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
-    const { error: dailyError } = await supabase
+    const { error: _dailyError } = await supabase
       .from('analytics_daily_visitors')
       .upsert({
         date: today,
@@ -141,7 +141,7 @@ export async function trackPageVisit(pagePath: string, userAgent?: string, ipAdd
         ignoreDuplicates: true
       })
     
-  } catch (error) {
+  } catch (_error) {
     // Silent failure - analytics shouldn't break user experience
   }
 }
@@ -149,7 +149,7 @@ export async function trackPageVisit(pagePath: string, userAgent?: string, ipAdd
 // Track form submission
 export async function trackFormSubmission(
   formType: string, 
-  formData: Record<string, any>, 
+  formData: Record<string, unknown>, 
   success: boolean = true, 
   errorMessage?: string,
   userAgent?: string,
@@ -185,7 +185,7 @@ export async function trackFormSubmission(
         error_message: errorMessage
       })
     
-  } catch (error) {
+  } catch (_error) {
     // Silent failure - analytics shouldn't break user experience
   }
 }
@@ -227,7 +227,7 @@ export async function trackAIAnalysis(
         error_message: errorMessage
       })
     
-  } catch (error) {
+  } catch (_error) {
     // Silent failure - analytics shouldn't break user experience
   }
 }

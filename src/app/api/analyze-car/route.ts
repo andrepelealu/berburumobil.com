@@ -5,9 +5,7 @@ import { trackAIAnalysis, getClientIP, getPlatformFromUrl } from '@/lib/analytic
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
-  let scrapeTime = 0
-  let aiAnalysisTime = 0
-  let dbSaveTime = 0
+  let sanitizedUrl = ''
   
   try {
     const { url } = await request.json()
@@ -17,7 +15,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Sanitize and validate URL
-    const sanitizedUrl = url.trim().substring(0, 1000)
+    sanitizedUrl = url.trim().substring(0, 1000)
     
     // Validate URL format and domain
     try {
@@ -47,7 +45,7 @@ export async function POST(request: NextRequest) {
           !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your_supabase')) {
         
         const cachedAnalysis = await DatabaseService.getCarAnalysisByUrl(sanitizedUrl)
-        const cacheTime = Date.now() - cacheStartTime
+        const _cacheTime = Date.now() - cacheStartTime
         
         if (cachedAnalysis) {
           const totalTime = Date.now() - startTime
@@ -73,19 +71,19 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(result)
         }
       }
-    } catch (cacheError) {
+    } catch (_cacheError) {
       // Continue with fresh analysis if cache fails
     }
     
     // Scrape car data from the provided URL
     const scrapeStartTime = Date.now()
     const carData = await scrapeCarFromUrl(sanitizedUrl)
-    scrapeTime = Date.now() - scrapeStartTime
+    const _scrapeTime = Date.now() - scrapeStartTime
     
     // Analyze images with AI
     const aiStartTime = Date.now()
     const aiAnalysis = await analyzeImagesWithAI(carData.images, carData.title)
-    aiAnalysisTime = Date.now() - aiStartTime
+    const _aiAnalysisTime = Date.now() - aiStartTime
     
     // Combine the data
     const analysisResult = {
@@ -121,7 +119,7 @@ export async function POST(request: NextRequest) {
                     request.headers.get('x-real-ip') || 
                     'unknown'
 
-      const savedAnalysis = await DatabaseService.saveCarAnalysis({
+      const _savedAnalysis = await DatabaseService.saveCarAnalysis({
         car_url: sanitizedUrl,
         car_data: carData,
         ai_score: aiAnalysis.score,
@@ -129,7 +127,7 @@ export async function POST(request: NextRequest) {
         user_ip: userIp
       })
 
-      dbSaveTime = Date.now() - dbStartTime
+      const _dbSaveTime = Date.now() - dbStartTime
 
       // Generate SEO blog article asynchronously in background (all environments)
       // This runs independently and doesn't affect user response time
@@ -147,8 +145,8 @@ export async function POST(request: NextRequest) {
         })
       }
 
-    } catch (dbError) {
-      dbSaveTime = Date.now() - dbStartTime
+    } catch (_dbError) {
+      const _dbSaveTime = Date.now() - dbStartTime
       // Continue without failing the request - silent database failure
     }
 
@@ -196,7 +194,7 @@ export async function POST(request: NextRequest) {
         userAgent,
         clientIP || undefined
       )
-    } catch (analyticsError) {
+    } catch (_analyticsError) {
       // Silent analytics failure
     }
     
@@ -224,7 +222,7 @@ export async function POST(request: NextRequest) {
         userAgent,
         clientIP || undefined
       )
-    } catch (analyticsError) {
+    } catch (_analyticsError) {
       // Silent analytics failure
     }
     
@@ -287,7 +285,7 @@ async function generateBlogArticle(carUrl: string, carData: CarData, aiAnalysis?
     if (!result.success) {
       throw new Error(result.error || 'Blog generation failed')
     }
-  } catch (error) {
+  } catch (_error) {
     // Silent failure for background blog generation
   }
 }

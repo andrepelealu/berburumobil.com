@@ -182,7 +182,7 @@ export default function BookingFormSection() {
       }
       
       setAiAnalysis(result)
-    } catch (error) {
+    } catch (_error) {
       setAiAnalysis({
         error: true,
         errorMessage: 'Terjadi kesalahan saat menganalisis mobil',
@@ -242,13 +242,13 @@ export default function BookingFormSection() {
             navigator.userAgent,
             ip
           )
-        } catch (analyticsError) {
+        } catch (_analyticsError) {
           // Silent analytics failure
         }
       } else {
         throw new Error(result.error || 'Failed to create booking')
       }
-    } catch (error) {
+    } catch (_error) {
       // Track failed form submission
       try {
         const ipResponse = await fetch('/api/get-ip')
@@ -263,11 +263,11 @@ export default function BookingFormSection() {
             totalAmount: calculateTotal()
           },
           false,
-          error instanceof Error ? error.message : 'Unknown error',
+          _error instanceof Error ? _error.message : 'Unknown error',
           navigator.userAgent,
           ip
         )
-      } catch (analyticsError) {
+      } catch (_analyticsError) {
         // Silent analytics failure
       }
       
